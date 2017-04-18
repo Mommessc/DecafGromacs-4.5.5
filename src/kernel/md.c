@@ -1,4 +1,4 @@
-/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
+﻿/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
  *
  * 
  *                This source code is part of
@@ -1314,53 +1314,101 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
             copy_mat(state->fvir_prev,force_vir);
         }
 
-        if(cr-> iteration % cr->stepDecaf == 0)
-        {
-            if(cr->terminated)
-                break; // Leaving the loop
+		/*if(cr->nodeid == 0){
+			fprintf(stdout, "Iteration %d passed!\n", cr->iteration);
+		}*/
 
-            bca_field field_pos = bca_create_arrayfield(state->x, bca_FLOAT,
-                                                        mdatoms->homenr * 3, 3,
-                                                        mdatoms->homenr * 3, false);
 
-            size_t i;
-            unsigned int *IDs = (unsigned int*)(malloc(mdatoms->homenr * sizeof(unsigned int)));
-            for (i = mdatoms->start; i < mdatoms->start + mdatoms->homenr; ++i)
-            {
-                if(cr->nnodes == 1)
-                    IDs[i] = i;
-                else
-                    IDs[i] = cr->dd->gatindex[i];
-            }
-            bca_field field_ID = bca_create_arrayfield(IDs, bca_UNSIGNED,
-                                                       mdatoms->homenr, 1,
-                                                       mdatoms->homenr, false);
+		if( (cr->iteration != 0) && (cr-> iteration % cr->stepDecaf == 0) )
+		{
+            // For experiments with decaf
+            struct timeval beginDecaf;
+            struct timeval endDecaf;
+            struct timeval beginPut;
+            struct timeval endPut;
 
-            bca_constructdata container = bca_create_constructdata();
+			gettimeofday(&beginDecaf, NULL);
 
-            if(!bca_append_field(container, "pos",
-                                 field_pos, bca_NOFLAG, bca_PRIVATE,
-                                 bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
-            {
-                gmx_fatal(FARGS, "Could not get append the data field in Decaf");
-            }
-            if(!bca_append_field(container, "ids",
-                                 field_ID, bca_NOFLAG, bca_PRIVATE,
-                                 bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
-            {
-                gmx_fatal(FARGS, "Could not get append the data field in Decaf");
-            }
+			if(cr->terminated)
+				break; // Leaving the loop
 
-            gettimeofday(&(cr->beginPut), NULL);
-            dca_put(cr->decaf, container);
-            gettimeofday(&(cr->endPut), NULL);
+			bca_field field_pos = bca_create_arrayfield(state->x, bca_FLOAT,
+			                                            mdatoms->homenr * 3, 3,
+			                                            mdatoms->homenr * 3, false);
 
-            bca_free_field(field_pos);
-            bca_free_field(field_ID);
-            bca_free_constructdata(container);
-            free(IDs);
-            //fprintf(stdout, "Container sent\n");
-        }
+			bca_field field_vel = bca_create_arrayfield(state->v, bca_FLOAT,
+			                                            mdatoms->homenr * 3, 3,
+			                                            mdatoms->homenr, false);
+
+			bca_field field_force = bca_create_arrayfield(f, bca_FLOAT,
+			                                              mdatoms->homenr * 3, 3,
+			                                              mdatoms->homenr, false);
+
+			size_t i;
+			unsigned int *IDs = (unsigned int*)(malloc(mdatoms->homenr * sizeof(unsigned int)));
+			for (i = mdatoms->start; i < mdatoms->start + mdatoms->homenr; ++i)
+			{
+				if(cr->nnodes == 1)
+					IDs[i] = i;
+				else
+					IDs[i] = cr->dd->gatindex[i];
+			}
+			bca_field field_ID = bca_create_arrayfield(IDs, bca_UNSIGNED,
+			                                           mdatoms->homenr, 1,
+			                                           mdatoms->homenr, false);
+
+			bca_constructdata container = bca_create_constructdata();
+
+			if(!bca_append_field(container, "ids",
+			                     field_ID, bca_NOFLAG, bca_PRIVATE,
+			                     bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
+			{
+				gmx_fatal(FARGS, "Could not append the data field \"ids\" in Decaf container");
+			}
+			if(!bca_append_field(container, "pos",
+			                     field_pos, bca_NOFLAG, bca_PRIVATE,
+			                     bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
+			{
+				gmx_fatal(FARGS, "Could not append the data field \"pos\" in Decaf container");
+			}
+			if(!bca_append_field(container, "vel",
+			                     field_vel, bca_NOFLAG, bca_PRIVATE,
+			                     bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
+			{
+				gmx_fatal(FARGS, "Could not append the data field \"vel\" in Decaf container");
+			}
+			if(!bca_append_field(container, "force",
+			                     field_force, bca_NOFLAG, bca_PRIVATE,
+			                     bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
+			{
+				gmx_fatal(FARGS, "Could not append the data field \"force\" in Decaf container");
+			}
+
+			//dca_put(cr->decaf, container);
+			gettimeofday(&beginPut, NULL);
+			dca_put_port(cr->decaf, container, "Out");
+			gettimeofday(&endPut, NULL);
+
+			bca_free_field(field_pos);
+			bca_free_field(field_force);
+			bca_free_field(field_vel);
+			bca_free_field(field_ID);
+			bca_free_constructdata(container);
+			free(IDs);
+			//fprintf(stdout, "Container sent\n");
+			gettimeofday(&endDecaf, NULL);
+			double elapsedTimeDecaf = (endDecaf.tv_sec - beginDecaf.tv_sec) * 1000.0;      // sec to ms
+			elapsedTimeDecaf += (endDecaf.tv_usec - beginDecaf.tv_usec) / 1000.0;   // us to ms
+
+			cr->globalTime += elapsedTimeDecaf;
+
+			double elapsedTimePut = (endPut.tv_sec - beginPut.tv_sec) * 1000.0;      // sec to ms
+			elapsedTimePut += (endPut.tv_usec - beginPut.tv_usec) / 1000.0;   // us to ms
+
+			cr->globalPut += elapsedTimePut;
+
+			//fprintf(stdout, "GMX_put %i it %d time %f put %f\n", cr->nodeid, cr->iteration, elapsedTimeDecaf, elapsedTimePut);
+		}
         /*  ################## END TRAJECTORY OUTPUT ################ */
         
         /* Determine the wallclock run time up till now */
@@ -1891,25 +1939,42 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
             gettimeofday(&(cr->endIt), NULL);
             double elapsedTimeIt = (cr->endIt.tv_sec - cr->beginIt.tv_sec) * 1000.0;      // sec to ms
             elapsedTimeIt += (cr->endIt.tv_usec - cr->beginIt.tv_usec) / 1000.0;   // us to ms
-            double elapsedTimeGet = (cr->endGet.tv_sec - cr->beginGet.tv_sec) * 1000.0;      // sec to ms
+
+			cr->globalGMX += elapsedTimeIt;
+			/*double elapsedTimeGet = (cr->endGet.tv_sec - cr->beginGet.tv_sec) * 1000.0;      // sec to ms
             elapsedTimeGet += (cr->endGet.tv_usec - cr->beginGet.tv_usec) / 1000.0;   // us to ms
             double elapsedTimePut = (cr->endPut.tv_sec - cr->beginPut.tv_sec) * 1000.0;      // sec to ms
             elapsedTimePut += (cr->endPut.tv_usec - cr->beginPut.tv_usec) / 1000.0;   // us to ms
+			*/
 
-
-            fprintf(perfOutput,"%lli;%f;%f;%f\n",
+			/*fprintf(perfOutput,"%lli;%f;%f;%f\n",
                     step_rel-1,
                     elapsedTimeIt,
                     (elapsedTimeGet/elapsedTimeIt)*100.0,
-                    (elapsedTimePut/elapsedTimeIt)*100.0);
+					(elapsedTimePut/elapsedTimeIt)*100.0);*/
+
+			fprintf(perfOutput, "%lli;%f\n", step_rel-1, elapsedTimeIt);
             fflush(perfOutput);
         }
 
         cr->iteration += 1;
 
+		if(cr->iteration == cr->stepStop){
+			break;
+		}
+
     }
 
     fclose(perfOutput);
+
+	FILE *outFile = NULL;
+	char fileNameOut[32];
+	sprintf(fileNameOut,"GLOBAL_gmx_%i.txt",(cr)->nodeid);
+	outFile = fopen(fileNameOut,"w");
+
+	fprintf(outFile, "gmx %i decaf %f put %f GMX %f\n", (cr)->nodeid, cr->globalTime, cr->globalPut, cr->globalGMX);
+	fflush(outFile);
+	fclose(outFile);
 
     /* End of main MD loop */
     debug_gmx();

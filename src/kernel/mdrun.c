@@ -1,4 +1,4 @@
-/*  -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
+﻿/*  -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
  *
  * 
  *                This source code is part of
@@ -408,7 +408,7 @@ int main(int argc,char *argv[])
   int  nstepout=100;
   int  nthreads=0; /* set to determine # of threads automatically */
   int  resetstep=-1;
-  int  nstepdecaf=10;
+  int  nstepdecaf=100;
   
   rvec realddxyz={0,0,0};
   const char *ddno_opt[ddnoNR+1] =
@@ -532,10 +532,10 @@ int main(int argc,char *argv[])
 
   MPI_Init(&argc, &argv);
   dca_decaf decaf = dca_create_decaf(MPI_COMM_WORLD);
-  fprintf(stdout,"Creation of Decaf completed\n");
+  //fprintf(stdout,"Creation of Decaf completed\n");
 
   dca_init_from_json(decaf, "wflow_gromacs.json");
-  if(decaf == NULL)
+  /*if(decaf == NULL)
       fprintf(stdout, "ERROR : fail to intialize decaf.\n");
   else
       fprintf(stdout, "Initialization of Decaf successfull\n");
@@ -551,7 +551,7 @@ int main(int argc,char *argv[])
       MPI_Finalize();
       dca_free_decaf(decaf);
       exit(0);
-  }
+  }*/
 
   cr = init_par_decaf(&argc, &argv, decaf);
   cr->forceIds = NULL;    // Ids of atoms to steer
@@ -562,6 +562,12 @@ int main(int argc,char *argv[])
                           // Needed not to do a get on the first iteration.
   cr->iteration = 0;      // step in the simulation loop
   cr->terminated = false;
+  cr->globalTime = 0.0;
+  cr->globalPut = 0.0;
+  cr->globalGMX = 0.0;
+  cr->stepStop = 5000;
+
+  fprintf(stdout, "GMX ready!\n");
 
   if (MASTER(cr))
     CopyRight(stderr, argv[0]);
@@ -724,7 +730,7 @@ int main(int argc,char *argv[])
                 pforce, cpt_period,max_hours,deviceOptions,Flags);
 
   dca_terminate(cr->decaf);
-  fprintf(stdout," Decaf terminated\n");
+  //fprintf(stdout," Decaf terminated\n");
   gmx_finalize_decaf(cr->decaf);
 
   dca_free_decaf(decaf);

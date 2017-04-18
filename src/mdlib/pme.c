@@ -1,4 +1,4 @@
-/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
+﻿/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
  *
  * 
  *                This source code is part of
@@ -2434,6 +2434,14 @@ int gmx_pmeonly(gmx_pme_t pme,
                                     cycles);
         
         count++;
+
+		//Decaf part
+		if(cr->firstStep)
+		{
+			fprintf(stderr, "First iteration, we don't do naything\n");
+			cr->firstStep = false;
+			cr->iteration +=1;
+		}
 
         if (step_rel == wcycle_get_reset_counters(wcycle))
         {

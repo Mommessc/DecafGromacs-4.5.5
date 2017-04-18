@@ -1,4 +1,4 @@
-/*
+﻿/*
  * 
  *                This source code is part of
  * 
@@ -293,6 +293,10 @@ typedef struct {
                   // Needed not to do a get on the first iteration.
   int iteration;  // simulation step
   bool terminated;// Received the quit message
+  double globalTime;
+  double globalPut;
+  double globalGMX;
+  int stepStop;
   struct timeval beginIt;
   struct timeval endIt;
   struct timeval beginGet;

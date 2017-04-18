@@ -1,4 +1,4 @@
-/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
+﻿/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
  *
  * 
  *                This source code is part of
@@ -855,7 +855,7 @@ void do_force(FILE *fplog,t_commrec *cr,
                       inputrec->ex,inputrec->et,t);
         }
 
-        steer_from_decaf(cr, f);
+		//steer_from_decaf(cr, f);
         
         /* Communicate the forces */
         if (PAR(cr))
