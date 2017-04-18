@@ -48,6 +48,8 @@ typedef void* MPI_Group;
 #endif
 
 #include "idef.h"
+#include <decaf/C/cdecaf.h>
+#include <sys/time.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -280,6 +282,24 @@ typedef struct {
   /* these buffers are used as destination buffers if MPI_IN_PLACE isn't
      supported.*/
   mpi_in_place_buf_t *mpb;
+
+  dca_decaf decaf;
+
+  int* forceIds;  // Ids of atoms to steer
+  int nbIds;      // Number of atom steered
+  float* force;   // force vector to apply
+  int stepDecaf;  // Do a get/put every stepDecaf iteration
+  bool firstStep; // Marker to signal the first time we call Decaf.
+                  // Needed not to do a get on the first iteration.
+  int iteration;  // simulation step
+  bool terminated;// Received the quit message
+  struct timeval beginIt;
+  struct timeval endIt;
+  struct timeval beginGet;
+  struct timeval endGet;
+  struct timeval beginPut;
+  struct timeval endPut;
+
 } t_commrec;
 
 #define MASTERNODE(cr)     ((cr)->nodeid == 0)

@@ -96,6 +96,105 @@
 
 #include "qmmm.h"
 
+#include <gmx_ga2la.h>
+
+void steer_from_decaf(t_commrec *cr, rvec *forces)
+{
+    // We don't do a get ont he first iteration to avoid deadlock
+    if(cr->firstStep)
+    {
+        fprintf(stderr, "First iteration, we don't do anything\n");
+        cr->firstStep = false;
+        return;
+    }
+
+    if(cr->iteration % cr->stepDecaf == 0)
+    {
+        //Getting the information from the Graph
+        unsigned int nb_data = 0;
+        gettimeofday(&(cr->beginGet), NULL);
+        bca_constructdata* in_data = dca_get(cr->decaf, &nb_data);
+        gettimeofday(&(cr->endGet), NULL);
+        if(in_data == NULL || nb_data == 0)
+        {
+            //fprintf(stderr, "Steering is not connected\n");
+            //cr->terminated = true;
+            return; // No steering available
+        }
+
+        bca_field fieldForce = bca_get_arrayfield(in_data[0], "force", bca_FLOAT);
+
+        if(!fieldForce)
+        {
+            fprintf(stderr, "Error: the field \'force\' is not present in the data model. Abording\n");
+            MPI_Abort(MPI_COMM_WORLD, 0);
+        }
+
+        size_t size;
+        float* arrayForce = bca_get_array(fieldForce, bca_FLOAT, &size);
+
+        //We copy the force so we can apply it when not in a decaf iteration
+        if( cr->force == NULL )
+            cr->force = (float*)malloc(size * sizeof(float));
+        memcpy(cr->force, arrayForce, size * sizeof(float));
+
+        if(!cr->forceIds) //We have not received the IDs yet
+        {
+            bca_field fieldIds = bca_get_arrayfield(in_data[0], "ids", bca_INT);
+            if(!fieldIds)
+            {
+                fprintf(stderr, "Error: the field \'ids\' is not present in the data model. Abording\n");
+                MPI_Abort(MPI_COMM_WORLD, 0);
+            }
+
+            // Saving the Ids that we will use at each iteration
+            size_t size;
+            int* arrayIds = bca_get_array(fieldIds, bca_INT, &size);
+            cr->forceIds = (int*)malloc(size * sizeof(int));
+            cr->nbIds = size;
+            memcpy(cr->forceIds, arrayIds, size * sizeof(int));
+
+            bca_free_field(fieldIds);
+
+        }
+
+
+        bca_free_field(fieldForce);
+        bca_free_constructdata(in_data[0]);
+
+    }
+
+    // Appying the forces if we have everything required
+    if(cr->force && cr->forceIds)
+    {
+        int i;
+        for(i = 0; i < cr->nbIds; i++)
+        {
+            int index = cr->forceIds[i];
+            int local_index = -1;
+            int cell_id = -1;
+            if(cr->dd == NULL) // No domain decomposition, 1 MPI rank
+            {
+                cell_id = 0;
+                local_index = index;
+            }
+            else if( ga2la_get_home(cr->dd->ga2la, index, &local_index) )
+                cell_id = 0;
+
+            if(0==cell_id) //The particule is treated by the current node
+            {
+                float fx = 1000.0 * cr->force[0];
+                float fy = 1000.0 * cr->force[1];
+                float fz = 1000.0 * cr->force[2];
+
+                forces[local_index][0] += fx;
+                forces[local_index][1] += fy;
+                forces[local_index][2] += fz;
+            }
+        }
+    }
+}
+
 #if 0
 typedef struct gmx_timeprint {
     
@@ -755,6 +854,8 @@ void do_force(FILE *fplog,t_commrec *cr,
                       start,homenr,mdatoms->chargeA,x,fr->f_novirsum,
                       inputrec->ex,inputrec->et,t);
         }
+
+        steer_from_decaf(cr, f);
         
         /* Communicate the forces */
         if (PAR(cr))

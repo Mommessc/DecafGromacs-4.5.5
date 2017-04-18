@@ -587,6 +587,80 @@ t_commrec *init_par(int *argc,char ***argv_ptr)
     return cr;
 }
 
+t_commrec *init_par_decaf(int *argc,char ***argv_ptr, dca_decaf decaf)
+{
+    t_commrec *cr;
+    char      **argv;
+    int       i;
+    gmx_bool      pe=FALSE;
+
+    snew(cr,1);
+
+    cr->decaf = decaf;
+
+    argv = *argv_ptr;
+
+#ifdef GMX_MPI
+#ifdef GMX_LIB_MPI
+    pe = TRUE;
+#ifdef GMX_CHECK_MPI_ENV
+    /* Do not use MPI calls when env.var. GMX_CHECK_MPI_ENV is not set */
+    if (getenv(GMX_CHECK_MPI_ENV) == NULL)
+        pe = FALSE;
+#endif /* GMX_CHECK_MPI_ENV */
+#endif /* GMX_LIB_MPI  */
+    set_parallel_env(pe);
+    if (pe) {
+        cr->sim_nodeid = gmx_setup_decaf(argc,argv,&cr->nnodes, decaf);
+    } else {
+        cr->nnodes     = 1;
+        cr->sim_nodeid = 0;
+    }
+#else /* GMX_MPI */
+    pe=FALSE;
+    set_parallel_env(pe);
+    cr->sim_nodeid   = 0;
+    cr->nnodes       = 1;
+#endif /* GMX_MPI */
+
+    if (!PAR(cr) && (cr->sim_nodeid != 0))
+        gmx_comm("(!PAR(cr) && (cr->sim_nodeid != 0))");
+
+    if (PAR(cr))
+    {
+#ifdef GMX_MPI
+        cr->mpi_comm_mysim = dca_get_com(decaf);
+        cr->mpi_comm_mygroup = cr->mpi_comm_mysim;
+#endif /* GMX_MPI */
+    }
+    cr->nodeid = cr->sim_nodeid;
+
+    cr->duty = (DUTY_PP | DUTY_PME);
+
+    /* Communicate arguments if parallel */
+#ifndef GMX_THREADS
+    if (PAR(cr))
+        comm_args(cr,argc,argv_ptr);
+#endif /* GMX_THREADS */
+
+#ifdef GMX_MPI
+#if !defined(GMX_THREADS) && !defined(MPI_IN_PLACE_EXISTS)
+  /* initialize the MPI_IN_PLACE replacement buffers */
+  snew(cr->mpb, 1);
+  cr->mpb->ibuf=NULL;
+  cr->mpb->libuf=NULL;
+  cr->mpb->fbuf=NULL;
+  cr->mpb->dbuf=NULL;
+  cr->mpb->ibuf_alloc=0;
+  cr->mpb->libuf_alloc=0;
+  cr->mpb->fbuf_alloc=0;
+  cr->mpb->dbuf_alloc=0;
+#endif
+#endif
+
+    return cr;
+}
+
 t_commrec *init_par_threads(const t_commrec *cro)
 {
 #ifdef GMX_THREADS

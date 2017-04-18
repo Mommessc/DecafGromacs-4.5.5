@@ -99,6 +99,8 @@
 #include "corewrap.h"
 #endif
 
+#include <decaf/C/cdecaf.h>
+
 
 double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
              const output_env_t oenv, gmx_bool bVerbose,gmx_bool bCompact,
@@ -672,11 +674,19 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
         multisim_nsteps=get_multisim_nsteps(cr, ir->nsteps);
     }
 
+    FILE *perfOutput = NULL;
+    char fileNamePerf[32];
+    sprintf(fileNamePerf,"stats_gmx_%i.csv",(cr)->nodeid);
+    perfOutput = fopen(fileNamePerf,"w");
+
 
     /* and stop now if we should */
     bLastStep = (bRerunMD || (ir->nsteps >= 0 && step_rel > ir->nsteps) ||
                  ((multisim_nsteps >= 0) && (step_rel >= multisim_nsteps )));
     while (!bLastStep || (bRerunMD && bNotLastFrame)) {
+
+        if(cr-> iteration % cr->stepDecaf == 0)
+            gettimeofday(&(cr->beginIt), NULL);
 
         wallcycle_start(wcycle,ewcSTEP);
 
@@ -1303,6 +1313,54 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
             copy_mat(state->svir_prev,shake_vir);
             copy_mat(state->fvir_prev,force_vir);
         }
+
+        if(cr-> iteration % cr->stepDecaf == 0)
+        {
+            if(cr->terminated)
+                break; // Leaving the loop
+
+            bca_field field_pos = bca_create_arrayfield(state->x, bca_FLOAT,
+                                                        mdatoms->homenr * 3, 3,
+                                                        mdatoms->homenr * 3, false);
+
+            size_t i;
+            unsigned int *IDs = (unsigned int*)(malloc(mdatoms->homenr * sizeof(unsigned int)));
+            for (i = mdatoms->start; i < mdatoms->start + mdatoms->homenr; ++i)
+            {
+                if(cr->nnodes == 1)
+                    IDs[i] = i;
+                else
+                    IDs[i] = cr->dd->gatindex[i];
+            }
+            bca_field field_ID = bca_create_arrayfield(IDs, bca_UNSIGNED,
+                                                       mdatoms->homenr, 1,
+                                                       mdatoms->homenr, false);
+
+            bca_constructdata container = bca_create_constructdata();
+
+            if(!bca_append_field(container, "pos",
+                                 field_pos, bca_NOFLAG, bca_PRIVATE,
+                                 bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
+            {
+                gmx_fatal(FARGS, "Could not get append the data field in Decaf");
+            }
+            if(!bca_append_field(container, "ids",
+                                 field_ID, bca_NOFLAG, bca_PRIVATE,
+                                 bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
+            {
+                gmx_fatal(FARGS, "Could not get append the data field in Decaf");
+            }
+
+            gettimeofday(&(cr->beginPut), NULL);
+            dca_put(cr->decaf, container);
+            gettimeofday(&(cr->endPut), NULL);
+
+            bca_free_field(field_pos);
+            bca_free_field(field_ID);
+            bca_free_constructdata(container);
+            free(IDs);
+            //fprintf(stdout, "Container sent\n");
+        }
         /*  ################## END TRAJECTORY OUTPUT ################ */
         
         /* Determine the wallclock run time up till now */
@@ -1822,7 +1880,37 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
             gs.set[eglsRESETCOUNTERS] = 0;
         }
 
+        // We take the time just before the next decaf iteration
+        // We want to mesure the time of a full Cycle of Gromacs
+        // before receiving new data.
+        // If output frequency = 10
+        // beginIt = beginning of it 0
+        // endId = End if It 9
+        if(cr-> iteration % cr->stepDecaf == cr->stepDecaf -1)
+        {
+            gettimeofday(&(cr->endIt), NULL);
+            double elapsedTimeIt = (cr->endIt.tv_sec - cr->beginIt.tv_sec) * 1000.0;      // sec to ms
+            elapsedTimeIt += (cr->endIt.tv_usec - cr->beginIt.tv_usec) / 1000.0;   // us to ms
+            double elapsedTimeGet = (cr->endGet.tv_sec - cr->beginGet.tv_sec) * 1000.0;      // sec to ms
+            elapsedTimeGet += (cr->endGet.tv_usec - cr->beginGet.tv_usec) / 1000.0;   // us to ms
+            double elapsedTimePut = (cr->endPut.tv_sec - cr->beginPut.tv_sec) * 1000.0;      // sec to ms
+            elapsedTimePut += (cr->endPut.tv_usec - cr->beginPut.tv_usec) / 1000.0;   // us to ms
+
+
+            fprintf(perfOutput,"%lli;%f;%f;%f\n",
+                    step_rel-1,
+                    elapsedTimeIt,
+                    (elapsedTimeGet/elapsedTimeIt)*100.0,
+                    (elapsedTimePut/elapsedTimeIt)*100.0);
+            fflush(perfOutput);
+        }
+
+        cr->iteration += 1;
+
     }
+
+    fclose(perfOutput);
+
     /* End of main MD loop */
     debug_gmx();
     

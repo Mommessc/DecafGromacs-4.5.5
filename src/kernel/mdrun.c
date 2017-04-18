@@ -53,6 +53,10 @@
 #include "thread_mpi.h"
 #endif
 
+#define MAX_STRING_LENGTH 512
+
+#include <decaf/C/cdecaf.h>
+
 /* afm stuf */
 #include "pull.h"
 
@@ -404,6 +408,7 @@ int main(int argc,char *argv[])
   int  nstepout=100;
   int  nthreads=0; /* set to determine # of threads automatically */
   int  resetstep=-1;
+  int  nstepdecaf=10;
   
   rvec realddxyz={0,0,0};
   const char *ddno_opt[ddnoNR+1] =
@@ -431,6 +436,8 @@ int main(int argc,char *argv[])
 #endif
     { "-npme",    FALSE, etINT, {&npme},
       "Number of separate nodes to be used for PME, -1 is guess" },
+    { "-nstepdecaf",    FALSE, etINT, {&nstepdecaf},
+      "Output decaf data everu nstepdecaf iteration" },
     { "-ddorder", FALSE, etENUM, {ddno_opt},
       "DD node order" },
     { "-ddcheck", FALSE, etBOOL, {&bDDBondCheck},
@@ -507,8 +514,54 @@ int main(int argc,char *argv[])
   int      rc;
   char **multidir=NULL;
 
+  // Preparing Decaf before the initialization of Gromacs structures
+  char * prefix = getenv("DECAF_PREFIX");
+  if(prefix == NULL)
+  {
+      fprintf(stderr, "ERROR: environment variable DECAF_PREFIX not defined. "
+              "Please export DECAF_PREFIX to point to the root of your decaf "
+              "install directory.\n");
+      exit(1);
+  }
 
-  cr = init_par(&argc,&argv);
+  char libpath[MAX_STRING_LENGTH];
+  char path[MAX_STRING_LENGTH];
+  strcpy(libpath, "/examples/gromacs/libmod_dflow_gromacs.so");
+  strcpy(path, prefix);
+  strcat(path, libpath);
+
+  MPI_Init(&argc, &argv);
+  dca_decaf decaf = dca_create_decaf(MPI_COMM_WORLD);
+  fprintf(stdout,"Creation of Decaf completed\n");
+
+  dca_init_from_json(decaf, "wflow_gromacs.json");
+  if(decaf == NULL)
+      fprintf(stdout, "ERROR : fail to intialize decaf.\n");
+  else
+      fprintf(stdout, "Initialization of Decaf successfull\n");
+
+  if(dca_my_node(decaf, "gmx"))
+      fprintf(stdout,"Launching gmx\n");
+  else //dflow case
+  {
+      fprintf(stdout, "Cleaning for the dflow\n");
+      //MPI_Barrier(MPI_COMM_WORLD);
+      fprintf(stdout, "Barrier passed.\n");
+      dca_terminate(decaf);
+      MPI_Finalize();
+      dca_free_decaf(decaf);
+      exit(0);
+  }
+
+  cr = init_par_decaf(&argc, &argv, decaf);
+  cr->forceIds = NULL;    // Ids of atoms to steer
+  cr->nbIds = 0;
+  cr->force = NULL;       // force vector to apply
+  cr->stepDecaf = nstepdecaf;    // Do a get/put every stepDecaf iteration
+  cr->firstStep = true;   // Marker to signal the first time we call Decaf.
+                          // Needed not to do a get on the first iteration.
+  cr->iteration = 0;      // step in the simulation loop
+  cr->terminated = false;
 
   if (MASTER(cr))
     CopyRight(stderr, argv[0]);
@@ -670,8 +723,13 @@ int main(int argc,char *argv[])
                 nstepout,resetstep,nmultisim,repl_ex_nst,repl_ex_seed,
                 pforce, cpt_period,max_hours,deviceOptions,Flags);
 
-  if (gmx_parallel_env_initialized())
-      gmx_finalize();
+  dca_terminate(cr->decaf);
+  fprintf(stdout," Decaf terminated\n");
+  gmx_finalize_decaf(cr->decaf);
+
+  dca_free_decaf(decaf);
+
+  MPI_Finalize();
 
   if (MULTIMASTER(cr)) {
       thanx(stderr);

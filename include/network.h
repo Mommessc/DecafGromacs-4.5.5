@@ -56,6 +56,9 @@ extern "C" {
 int gmx_setup(int *argc,char **argv,int *nnodes);
 /* Initializes the parallel communication, return the ID of the node */
 
+int gmx_setup_decaf(int *argc, char **argv, int *nnodes, dca_decaf decaf);
+/* Initializes the parallel communication, return the ID of the node */
+
 int gmx_node_num(void);
 /* return the number of nodes in the ring */
 
@@ -114,6 +117,8 @@ void gmx_abort(int nodeid,int nnodes,int errorno);
 /* Abort the parallel run */
 
 void gmx_finalize(void);
+
+void gmx_finalize_decaf(dca_decaf decaf);
 
 /* Finish the parallel run in an ordered manner */
 

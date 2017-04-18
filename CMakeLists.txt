@@ -815,6 +815,31 @@ set(INCL_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/include)
 
 set(GMXLIBDIR        ${DATA_INSTALL_DIR}/top)
 
+#################
+## Decaf stuff
+################
+if(NOT DECAF_PREFIX)
+  set(DECAF_PREFIX $ENV{DECAF_PREFIX})
+endif()
+if(GMX_MPI)
+  message(STATUS "MPI activated.")
+else()
+  message(STATUS "MPI not activated")
+endif()
+if(MPI_FOUND)
+  message(STATUS "MPI trouve.")
+else()
+  message(STATUS "MPI not found")
+endif()
+message(STATUS "MPI PATH : ${MPI_C_INCLUDE_PATH}")
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${DECAF_PREFIX}/cmake)
+find_package(Decaf REQUIRED)
+include_directories(${DECAF_C_INCLUDE_DIR})
+list(APPEND GMX_EXTRA_LIBRARIES ${DECAF_C_DATA_MODEL_LIBRARY} ${DECAF_C_RUNTIME_LIBRARY})
+set (GMX_BINARY_SUFFIX "${GMX_BINARY_SUFFIX}_4.5.5_decaf")
+set (GMX_LIBS_SUFFIX "${GMX_LIBS_SUFFIX}_4.5.5_decaf")
+
 ##################################################################
 # Shared library settings - Darwin uses INSTALL_NAME_DIR instead!
 ##################################################################
