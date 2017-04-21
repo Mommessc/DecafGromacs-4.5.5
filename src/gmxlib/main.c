@@ -1,4 +1,4 @@
-/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
+﻿/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
  *
  * 
  *                This source code is part of
@@ -609,13 +609,14 @@ t_commrec *init_par_decaf(int *argc,char ***argv_ptr, dca_decaf decaf)
         pe = FALSE;
 #endif /* GMX_CHECK_MPI_ENV */
 #endif /* GMX_LIB_MPI  */
-    set_parallel_env(pe);
+
+	set_parallel_env(pe);
     if (pe) {
         cr->sim_nodeid = gmx_setup_decaf(argc,argv,&cr->nnodes, decaf);
     } else {
         cr->nnodes     = 1;
         cr->sim_nodeid = 0;
-    }
+	}
 #else /* GMX_MPI */
     pe=FALSE;
     set_parallel_env(pe);
@@ -624,13 +625,37 @@ t_commrec *init_par_decaf(int *argc,char ***argv_ptr, dca_decaf decaf)
 #endif /* GMX_MPI */
 
     if (!PAR(cr) && (cr->sim_nodeid != 0))
-        gmx_comm("(!PAR(cr) && (cr->sim_nodeid != 0))");
-
+		gmx_comm("(!PAR(cr) && (cr->sim_nodeid != 0))");
     if (PAR(cr))
     {
 #ifdef GMX_MPI
-        cr->mpi_comm_mysim = dca_get_com(decaf);
-        cr->mpi_comm_mygroup = cr->mpi_comm_mysim;
+		int myrank, gmx_size;
+		MPI_Comm d_com = dca_get_com(decaf);
+		MPI_Comm_rank(d_com, &myrank);
+		MPI_Comm_size(d_com, &gmx_size);
+
+		MPI_Group group, world_group;
+		MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+		int range[gmx_size];
+		int i;
+		for(i = 0; i<gmx_size; i++){
+			range[i] = i;
+		}
+		MPI_Group_incl(world_group, gmx_size, range, &group);
+
+		MPI_Comm group_comm;
+		MPI_Comm_create_group(MPI_COMM_WORLD, group, 0, &group_comm);
+
+		MPI_Barrier(group_comm);//May not be usefull, i'll keep it anyway
+
+		MPI_Group_free(&group);
+		MPI_Group_free(&world_group);
+
+		cr->mpi_comm_mygroup = group_comm;
+		cr->mpi_comm_mysim = group_comm;
+
+		//cr->mpi_comm_mysim = dca_get_com(decaf);
+		//cr->mpi_comm_mygroup = cr->mpi_comm_mysim;
 #endif /* GMX_MPI */
     }
     cr->nodeid = cr->sim_nodeid;
@@ -642,7 +667,6 @@ t_commrec *init_par_decaf(int *argc,char ***argv_ptr, dca_decaf decaf)
     if (PAR(cr))
         comm_args(cr,argc,argv_ptr);
 #endif /* GMX_THREADS */
-
 #ifdef GMX_MPI
 #if !defined(GMX_THREADS) && !defined(MPI_IN_PLACE_EXISTS)
   /* initialize the MPI_IN_PLACE replacement buffers */

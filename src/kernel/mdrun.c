@@ -531,6 +531,7 @@ int main(int argc,char *argv[])
   strcat(path, libpath);
 
   MPI_Init(&argc, &argv);
+
   dca_decaf decaf = dca_create_decaf(MPI_COMM_WORLD);
   //fprintf(stdout,"Creation of Decaf completed\n");
 
@@ -564,10 +565,12 @@ int main(int argc,char *argv[])
   cr->terminated = false;
   cr->globalTime = 0.0;
   cr->globalPut = 0.0;
+  cr->intermPut = 0.0;
+  cr->putFilter1 = 0.0;
+  cr->putFilter2 = 0.0;
+  cr->putFilter3 = 0.0;
   cr->globalGMX = 0.0;
-  cr->stepStop = 5000;
-
-  fprintf(stdout, "GMX ready!\n");
+  cr->stepStop = 100000;
 
   if (MASTER(cr))
     CopyRight(stderr, argv[0]);
@@ -730,7 +733,9 @@ int main(int argc,char *argv[])
                 pforce, cpt_period,max_hours,deviceOptions,Flags);
 
   dca_terminate(cr->decaf);
-  //fprintf(stdout," Decaf terminated\n");
+  int world_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+  fprintf(stdout," Decaf terminated on rank %d\n", world_rank);
   gmx_finalize_decaf(cr->decaf);
 
   dca_free_decaf(decaf);

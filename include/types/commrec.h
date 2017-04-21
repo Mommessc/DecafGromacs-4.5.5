@@ -294,8 +294,12 @@ typedef struct {
   int iteration;  // simulation step
   bool terminated;// Received the quit message
   double globalTime;
-  double globalPut;
+  double globalPut; //For every iterations
+  double intermPut; //For 100 iterations
   double globalGMX;
+  double putFilter1;
+  double putFilter2;
+  double putFilter3;
   int stepStop;
   struct timeval beginIt;
   struct timeval endIt;
