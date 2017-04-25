@@ -1357,43 +1357,66 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
 			                                           mdatoms->homenr, 1,
 			                                           mdatoms->homenr, false);
 
-			bca_constructdata container = bca_create_constructdata();
 
-			if(!bca_append_field(container, "ids",
+			bca_constructdata container1 = bca_create_constructdata();
+			if(!bca_append_field(container1, "ids",
 			                     field_ID, bca_NOFLAG, bca_PRIVATE,
 			                     bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
 			{
 				gmx_fatal(FARGS, "Could not append the data field \"ids\" in Decaf container");
 			}
-			if(!bca_append_field(container, "pos",
+			if(!bca_append_field(container1, "pos",
 			                     field_pos, bca_NOFLAG, bca_PRIVATE,
 			                     bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
 			{
 				gmx_fatal(FARGS, "Could not append the data field \"pos\" in Decaf container");
 			}
-			if(!bca_append_field(container, "vel",
-			                     field_vel, bca_NOFLAG, bca_PRIVATE,
+
+
+			bca_constructdata container2 = bca_create_constructdata();
+			if(!bca_append_field(container2, "ids",
+			                     field_ID, bca_NOFLAG, bca_PRIVATE,
 			                     bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
 			{
-				gmx_fatal(FARGS, "Could not append the data field \"vel\" in Decaf container");
+				gmx_fatal(FARGS, "Could not append the data field \"ids\" in Decaf container");
 			}
-			if(!bca_append_field(container, "force",
+			if(!bca_append_field(container2, "pos",
+			                     field_pos, bca_NOFLAG, bca_PRIVATE,
+			                     bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
+			{
+				gmx_fatal(FARGS, "Could not append the data field \"pos\" in Decaf container");
+			}
+			if(!bca_append_field(container2, "force",
 			                     field_force, bca_NOFLAG, bca_PRIVATE,
 			                     bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
 			{
 				gmx_fatal(FARGS, "Could not append the data field \"force\" in Decaf container");
 			}
 
+
+			bca_constructdata container3 = bca_create_constructdata();
+			if(!bca_append_field(container3, "vel",
+			                     field_vel, bca_NOFLAG, bca_PRIVATE,
+			                     bca_SPLIT_DEFAULT, bca_MERGE_APPEND_VALUES))
+			{
+				gmx_fatal(FARGS, "Could not append the data field \"vel\" in Decaf container");
+			}
+
+
 			//dca_put(cr->decaf, container);
 			gettimeofday(&beginPut, NULL);
-			dca_put_port(cr->decaf, container, "Out");
+			dca_put_port(cr->decaf, container1, "Out1");
+			dca_put_port(cr->decaf, container2, "Out2");
+			dca_put_port(cr->decaf, container3, "Out3");
 			gettimeofday(&endPut, NULL);
 
 			bca_free_field(field_pos);
 			bca_free_field(field_force);
 			bca_free_field(field_vel);
 			bca_free_field(field_ID);
-			bca_free_constructdata(container);
+			bca_free_constructdata(container1);
+			bca_free_constructdata(container2);
+			bca_free_constructdata(container3);
 			free(IDs);
 			//fprintf(stdout, "Container sent\n");
 			gettimeofday(&endDecaf, NULL);
@@ -1958,7 +1981,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
 
 			//fprintf(perfOutput, "%lli;%f;%f;%f;%f;%f\n", step_rel-1, elapsedTimeIt, cr->intermPut, retFilter1, retFilter2, retFilter3);
 			fprintf(perfOutput, "%lli;%f;%f\n", step_rel-1, elapsedTimeIt, cr->intermPut);
-            fflush(perfOutput);
+
         }
 
         cr->iteration += 1;
@@ -1969,6 +1992,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
 
     }
 
+	fflush(perfOutput);
     fclose(perfOutput);
 
 	FILE *outFile = NULL;

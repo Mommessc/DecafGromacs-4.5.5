@@ -383,7 +383,7 @@ static void comm_args(const t_commrec *cr,int *argc,char ***argv)
   
   if (!MASTER(cr))
     snew(*argv,*argc+1);
-  fprintf(stderr,"NODEID=%d argc=%d\n",cr->nodeid,*argc);
+  //fprintf(stderr,"NODEID=%d argc=%d\n",cr->nodeid,*argc);
   for(i=0; (i<*argc); i++) {
     if (MASTER(cr))
       len = strlen((*argv)[i])+1;
