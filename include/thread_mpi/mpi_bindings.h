@@ -1,4 +1,4 @@
-/*
+﻿/*
 This source code file is part of thread_mpi.  
 Written by Sander Pronk, Erik Lindahl, and possibly others. 
 
@@ -210,6 +210,7 @@ typedef struct tmpi_datatype_ *MPI_Datatype;
 #define MPI_Comm_compare            tMPI_Comm_compare
 #define MPI_Comm_free               tMPI_Comm_free
 #define MPI_Comm_create             tMPI_Comm_create
+#define MPI_Comm_create_group       tMPI_Comm_create_group
 #define MPI_Comm_split              tMPI_Comm_split
 #define MPI_Comm_dup                tMPI_Comm_dup
 

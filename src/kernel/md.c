@@ -676,7 +676,7 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
 
     FILE *perfOutput = NULL;
     char fileNamePerf[32];
-    sprintf(fileNamePerf,"stats_gmx_%i.csv",(cr)->nodeid);
+	sprintf(fileNamePerf,"results/stats_gmx_%i.csv",(cr)->nodeid);
     perfOutput = fopen(fileNamePerf,"w");
 
 
@@ -1384,7 +1384,6 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
 				gmx_fatal(FARGS, "Could not append the data field \"force\" in Decaf container");
 			}
 
-			//dca_put(cr->decaf, container);
 			gettimeofday(&beginPut, NULL);
 			dca_put_port(cr->decaf, container, "Out");
 			gettimeofday(&endPut, NULL);
@@ -1406,8 +1405,8 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
 			elapsedTimePut += (endPut.tv_usec - beginPut.tv_usec) / 1000.0;   // us to ms
 
 			cr->globalPut += elapsedTimePut;
+			cr->intermPut = elapsedTimePut;
 
-			//fprintf(stdout, "GMX_put %i it %d time %f put %f\n", cr->nodeid, cr->iteration, elapsedTimeDecaf, elapsedTimePut);
 		}
         /*  ################## END TRAJECTORY OUTPUT ################ */
         
@@ -1941,20 +1940,9 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
             elapsedTimeIt += (cr->endIt.tv_usec - cr->beginIt.tv_usec) / 1000.0;   // us to ms
 
 			cr->globalGMX += elapsedTimeIt;
-			/*double elapsedTimeGet = (cr->endGet.tv_sec - cr->beginGet.tv_sec) * 1000.0;      // sec to ms
-            elapsedTimeGet += (cr->endGet.tv_usec - cr->beginGet.tv_usec) / 1000.0;   // us to ms
-            double elapsedTimePut = (cr->endPut.tv_sec - cr->beginPut.tv_sec) * 1000.0;      // sec to ms
-            elapsedTimePut += (cr->endPut.tv_usec - cr->beginPut.tv_usec) / 1000.0;   // us to ms
-			*/
 
-			/*fprintf(perfOutput,"%lli;%f;%f;%f\n",
-                    step_rel-1,
-                    elapsedTimeIt,
-                    (elapsedTimeGet/elapsedTimeIt)*100.0,
-					(elapsedTimePut/elapsedTimeIt)*100.0);*/
+			fprintf(perfOutput, "%lli;%f;%f\n", step_rel-1, elapsedTimeIt, cr->intermPut);
 
-			fprintf(perfOutput, "%lli;%f\n", step_rel-1, elapsedTimeIt);
-            fflush(perfOutput);
         }
 
         cr->iteration += 1;
@@ -1965,16 +1953,20 @@ double do_md(FILE *fplog,t_commrec *cr,int nfile,const t_filenm fnm[],
 
     }
 
+	fflush(perfOutput);
     fclose(perfOutput);
 
 	FILE *outFile = NULL;
 	char fileNameOut[32];
-	sprintf(fileNameOut,"GLOBAL_gmx_%i.txt",(cr)->nodeid);
+	sprintf(fileNameOut,"results/GLOBAL_gmx_%i.txt",(cr)->nodeid);
 	outFile = fopen(fileNameOut,"w");
 
 	fprintf(outFile, "gmx %i decaf %f put %f GMX %f\n", (cr)->nodeid, cr->globalTime, cr->globalPut, cr->globalGMX);
 	fflush(outFile);
 	fclose(outFile);
+
+	if(cr->nodeid == 0)
+		fprintf(stdout, "End of main MD loop\n");
 
     /* End of main MD loop */
     debug_gmx();

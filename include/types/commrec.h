@@ -295,6 +295,7 @@ typedef struct {
   bool terminated;// Received the quit message
   double globalTime;
   double globalPut;
+  double intermPut;
   double globalGMX;
   int stepStop;
   struct timeval beginIt;

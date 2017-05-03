@@ -1,4 +1,4 @@
-/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
+﻿/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4; c-file-style: "stroustrup"; -*-
  *
  * 
  *                This source code is part of
@@ -383,7 +383,7 @@ static void comm_args(const t_commrec *cr,int *argc,char ***argv)
   
   if (!MASTER(cr))
     snew(*argv,*argc+1);
-  fprintf(stderr,"NODEID=%d argc=%d\n",cr->nodeid,*argc);
+  //fprintf(stderr,"NODEID=%d argc=%d\n",cr->nodeid,*argc);
   for(i=0; (i<*argc); i++) {
     if (MASTER(cr))
       len = strlen((*argv)[i])+1;
@@ -629,8 +629,32 @@ t_commrec *init_par_decaf(int *argc,char ***argv_ptr, dca_decaf decaf)
     if (PAR(cr))
     {
 #ifdef GMX_MPI
-        cr->mpi_comm_mysim = dca_get_com(decaf);
-        cr->mpi_comm_mygroup = cr->mpi_comm_mysim;
+		int myrank, gmxsize;
+		MPI_Comm decaf_comm = dca_get_com(decaf);
+		MPI_Comm_rank(decaf_comm, &myrank);
+		MPI_Comm_size(decaf_comm, &gmxsize);
+
+		MPI_Group group, world;
+		MPI_Comm_group(MPI_COMM_WORLD, &world);
+		int range[gmxsize];
+		for(i=0; i<gmxsize;i++){
+			range[i] = i;
+		}
+		MPI_Group_incl(world, gmxsize, range, &group);
+
+		MPI_Comm group_comm;
+		MPI_Comm_create_group(MPI_COMM_WORLD, group, 0, &group_comm);
+
+		MPI_Barrier(group_comm); // may not be usefull but i keep it anyway
+
+		MPI_Group_free(&group);
+		MPI_Group_free(&world);
+
+		cr->mpi_comm_mygroup = group_comm;
+		cr->mpi_comm_mysim = group_comm;
+
+		//cr->mpi_comm_mysim = dca_get_com(decaf);
+		//cr->mpi_comm_mygroup = cr->mpi_comm_mysim;
 #endif /* GMX_MPI */
     }
     cr->nodeid = cr->sim_nodeid;

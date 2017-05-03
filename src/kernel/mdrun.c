@@ -409,6 +409,7 @@ int main(int argc,char *argv[])
   int  nthreads=0; /* set to determine # of threads automatically */
   int  resetstep=-1;
   int  nstepdecaf=100;
+  int  nstepstop = 1000;
   
   rvec realddxyz={0,0,0};
   const char *ddno_opt[ddnoNR+1] =
@@ -437,7 +438,9 @@ int main(int argc,char *argv[])
     { "-npme",    FALSE, etINT, {&npme},
       "Number of separate nodes to be used for PME, -1 is guess" },
     { "-nstepdecaf",    FALSE, etINT, {&nstepdecaf},
-      "Output decaf data everu nstepdecaf iteration" },
+      "Output decaf data every nstepdecaf iterations" },
+    { "-nstepstop",    FALSE, etINT, {&nstepstop},
+      "Stops after nstepstop iterations" },
     { "-ddorder", FALSE, etENUM, {ddno_opt},
       "DD node order" },
     { "-ddcheck", FALSE, etBOOL, {&bDDBondCheck},
@@ -524,53 +527,18 @@ int main(int argc,char *argv[])
       exit(1);
   }
 
-  char libpath[MAX_STRING_LENGTH];
-  char path[MAX_STRING_LENGTH];
-  strcpy(libpath, "/examples/gromacs/libmod_dflow_gromacs.so");
-  strcpy(path, prefix);
-  strcat(path, libpath);
 
   MPI_Init(&argc, &argv);
   dca_decaf decaf = dca_create_decaf(MPI_COMM_WORLD);
-  //fprintf(stdout,"Creation of Decaf completed\n");
 
   dca_init_from_json(decaf, "wflow_gromacs.json");
-  /*if(decaf == NULL)
-      fprintf(stdout, "ERROR : fail to intialize decaf.\n");
-  else
-      fprintf(stdout, "Initialization of Decaf successfull\n");
 
-  if(dca_my_node(decaf, "gmx"))
-      fprintf(stdout,"Launching gmx\n");
-  else //dflow case
-  {
-      fprintf(stdout, "Cleaning for the dflow\n");
-      //MPI_Barrier(MPI_COMM_WORLD);
-      fprintf(stdout, "Barrier passed.\n");
-      dca_terminate(decaf);
-      MPI_Finalize();
-      dca_free_decaf(decaf);
-      exit(0);
-  }*/
 
   cr = init_par_decaf(&argc, &argv, decaf);
-  cr->forceIds = NULL;    // Ids of atoms to steer
-  cr->nbIds = 0;
-  cr->force = NULL;       // force vector to apply
-  cr->stepDecaf = nstepdecaf;    // Do a get/put every stepDecaf iteration
-  cr->firstStep = true;   // Marker to signal the first time we call Decaf.
-                          // Needed not to do a get on the first iteration.
-  cr->iteration = 0;      // step in the simulation loop
-  cr->terminated = false;
-  cr->globalTime = 0.0;
-  cr->globalPut = 0.0;
-  cr->globalGMX = 0.0;
-  cr->stepStop = 5000;
 
-  fprintf(stdout, "GMX ready!\n");
 
-  if (MASTER(cr))
-    CopyRight(stderr, argv[0]);
+  //if (MASTER(cr))
+    //CopyRight(stderr, argv[0]);
 
   PCA_Flags = (PCA_KEEP_ARGS | PCA_NOEXIT_ON_ARGS | PCA_CAN_SET_DEFFNM
 	       | (MASTER(cr) ? 0 : PCA_QUIET));
@@ -591,7 +559,19 @@ int main(int argc,char *argv[])
   parse_common_args(&argc,argv,PCA_Flags, NFILE,fnm,asize(pa),pa,
                     asize(desc),desc,0,NULL, &oenv);
 
-
+  cr->forceIds = NULL;    // Ids of atoms to steer
+  cr->nbIds = 0;
+  cr->force = NULL;       // force vector to apply
+  cr->stepDecaf = nstepdecaf;    // Do a get/put every stepDecaf iteration
+  cr->firstStep = true;   // Marker to signal the first time we call Decaf.
+                          // Needed not to do a get on the first iteration.
+  cr->iteration = 0;      // step in the simulation loop
+  cr->terminated = false;
+  cr->stepStop = nstepstop;
+  cr->globalTime = 0.0;
+  cr->globalPut = 0.0;
+  cr->globalGMX = 0.0;
+  cr->intermPut = 0.0;
 
   /* we set these early because they might be used in init_multisystem() 
      Note that there is the potential for npme>nnodes until the number of
